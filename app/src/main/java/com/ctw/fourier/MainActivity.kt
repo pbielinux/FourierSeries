@@ -17,6 +17,9 @@ import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,42 +32,45 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            FourierCircle(200f, Offset(0f, 0f), 10)
+            FourierScreen()
         }
     }
 }
 
 @Composable
-fun FourierCircle(
-    baseRadius: Float,
-    center: Offset,
-    complexity: Int
-) {
+fun FourierScreen() {
+    var speed by remember {
+        mutableStateOf(0.01f)
+    }
+    var baseRadius by remember {
+        mutableStateOf(180f)
+    }
+    var complexity by remember {
+        mutableStateOf(10)
+    }
     var time by remember {
         mutableStateOf(0f)
     }
-    var angleIncrement by remember {
-        mutableStateOf(0.01f)
+    var centerX by remember {
+        mutableStateOf(0f)
     }
-    var size by remember {
-        mutableStateOf(180f)
+    var centerY by remember {
+        mutableStateOf(150f)
     }
-    var complex by remember {
-        mutableStateOf(complexity)
-    }
-    var centerX = remember { center.x }
-    var centerY = remember { center.y }
 
     LaunchedEffect(key1 = time) {
-        time += angleIncrement
+        time += speed
     }
-
 
     Column(
         modifier = Modifier
             .padding(8.dp)
             .background(Color.White)
             .fillMaxSize()
+            .onGloballyPositioned {
+                val bounds = it.boundsInWindow()
+                centerX = bounds.size.width / 2
+            }
     ) {
         Canvas(
             modifier = Modifier
@@ -72,98 +78,73 @@ fun FourierCircle(
                 .background(Color.Black)
                 .fillMaxWidth()
                 .height(350.dp)
-                .offset(350.dp / 2, 350.dp / 2)
         ) {
-            for (i in 0..complex) {
-                var prevX = centerX
-                var prevY = centerY
-                var n = i * 2 + 1
-                var radius = (size * (4 / (n * PI))).toFloat()
-                centerX += radius * cos(n * time)
-                centerY += radius * sin(n * time)
-                circle(radius, Offset(x = prevX, y = prevY), Offset(centerX, centerY))
-            }
+            fourierSeries(
+                center = Offset(centerX, centerY),
+                baseRadius = baseRadius,
+                complexity = complexity,
+                time = time
+            )
         }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(400.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceAround
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    text = "Speed"
-                )
-                Slider(
-                    modifier = Modifier.padding(horizontal = 10.dp),
-                    value = angleIncrement,
-                    onValueChange = {
-                        angleIncrement = it
-                    },
-                    valueRange = 0.001f..0.02f,
-                    steps = 10
-                )
-                Text(
-                    fontSize = 10.sp,
-                    text = angleIncrement.toString()
-                )
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    text = "Zoom"
-                )
-                Slider(
-                    modifier = Modifier.padding(horizontal = 10.dp),
-                    value = size,
-                    onValueChange = {
-                        size = it
-                    },
-                    valueRange = 0f..360f,
-                    steps = 9
-                )
-                Text(
-                    fontSize = 10.sp,
-                    text = size.toString()
-                )
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    text = "Complexity"
-                )
-                Slider(
-                    modifier = Modifier.padding(horizontal = 10.dp),
-                    value = complex.toFloat(),
-                    onValueChange = {
-                        complex = it.toInt()
-                    },
-                    valueRange = 0f..100f
-                )
-                Text(
-                    fontSize = 10.sp,
-                    text = complex.toString()
-                )
-            }
-        }
+
+        FourierSlider(
+            text = "Speed",
+            value = speed,
+            valueRange = 0.001f..0.02f
+        ) { speed = it }
+        FourierSlider(
+            text = "Zoom",
+            value = baseRadius,
+            valueRange = 50f..1000f,
+            steps = 9
+        ) { baseRadius = it }
+        FourierSlider(
+            text = "Complexity",
+            value = complexity.toFloat(),
+            valueRange = 0f..100f
+        ) { complexity = it.toInt() }
+        FourierSlider(
+            text = "Center X",
+            value = centerX,
+            valueRange = 0f..1000f
+        ) { centerX = it }
+        FourierSlider(
+            text = "Center Y",
+            value = centerY,
+            valueRange = 0f..1000f
+        ) { centerY = it }
+
     }
 }
 
-fun DrawScope.circle(
+fun DrawScope.fourierSeries(
+    center: Offset,
+    baseRadius: Float,
+    complexity: Int,
+    time: Float
+) : Offset {
+    var centerX = center.x
+    var centerY = center.y
+    for (i in 0..complexity) {
+        var prevX = centerX
+        var prevY = centerY
+        var n = i * 2 + 1
+        var radius = (baseRadius * (4 / (n * PI))).toFloat()
+        centerX += radius * cos(n * time)
+        centerY += radius * sin(n * time)
+        fouriercircle(
+            radius = radius,
+            center = Offset(x = prevX, y = prevY),
+            end = Offset(centerX, centerY)
+        )
+        if (i == complexity) {
+            return Offset(centerX, centerY)
+        }
+    }
+    return Offset(0f,0f)
+}
+
+fun DrawScope.fouriercircle(
     radius: Float,
     center: Offset,
     end: Offset
@@ -175,9 +156,7 @@ fun DrawScope.circle(
         style = Stroke(width = 1.5f)
     )
     drawPoints(
-        listOf(
-            center
-        ),
+        listOf(center),
         pointMode = PointMode.Points,
         color = Color.White,
         strokeWidth = 2.dp.toPx(),
@@ -189,4 +168,35 @@ fun DrawScope.circle(
         color = Color.White,
         strokeWidth = 1.5f
     )
+}
+
+@Composable
+fun FourierSlider(
+    text: String = "Feature",
+    value: Float = 0f,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    steps: Int = 0,
+    onValueChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            text = text
+        )
+        Text(
+            fontSize = 10.sp,
+            text = value.toString()
+        )
+        Slider(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            steps = steps
+        )
+    }
 }
