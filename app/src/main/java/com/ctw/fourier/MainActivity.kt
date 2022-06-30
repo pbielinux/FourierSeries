@@ -1,11 +1,14 @@
 package com.ctw.fourier
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,13 +20,12 @@ import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.input.key.Key.Companion.D
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -36,6 +38,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+var list = mutableListOf<Offset>()
 
 @Composable
 fun FourierScreen() {
@@ -55,7 +59,7 @@ fun FourierScreen() {
         mutableStateOf(0f)
     }
     var centerY by remember {
-        mutableStateOf(150f)
+        mutableStateOf(500f)
     }
 
     LaunchedEffect(key1 = time) {
@@ -67,9 +71,10 @@ fun FourierScreen() {
             .padding(8.dp)
             .background(Color.White)
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .onGloballyPositioned {
                 val bounds = it.boundsInWindow()
-                centerX = bounds.size.width / 2
+                centerX = bounds.size.width / 5
             }
     ) {
         Canvas(
@@ -79,12 +84,36 @@ fun FourierScreen() {
                 .fillMaxWidth()
                 .height(350.dp)
         ) {
-            fourierSeries(
+            val end = fourierSeries(
                 center = Offset(centerX, centerY),
                 baseRadius = baseRadius,
                 complexity = complexity,
                 time = time
             )
+            list.add(0, end)
+            if (list.size >= 350) {
+                list = list.dropLast(1).toMutableList()
+            }
+            for (i in 0..list.size - 1) {
+                val off = 700f
+                val element = list.elementAt(i)
+                drawPoints(
+                    listOf(Offset(i.toFloat() + off, element.y)),
+                    pointMode = PointMode.Points,
+                    color = Color.Red,
+                    strokeWidth = 2.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+                if (i == 0) {
+                    drawLine(
+                        start = end,
+                        end = Offset(i.toFloat() + off, element.y),
+                        color = Color.White,
+                        strokeWidth = 1.5f
+                    )
+                }
+            }
+
         }
 
         FourierSlider(
@@ -126,10 +155,10 @@ fun DrawScope.fourierSeries(
     var centerX = center.x
     var centerY = center.y
     for (i in 0..complexity) {
-        var prevX = centerX
-        var prevY = centerY
-        var n = i * 2 + 1
-        var radius = (baseRadius * (4 / (n * PI))).toFloat()
+        val prevX = centerX
+        val prevY = centerY
+        val n = i * 2 + 1
+        val radius = (baseRadius * (4 / (n * PI))).toFloat()
         centerX += radius * cos(n * time)
         centerY += radius * sin(n * time)
         fouriercircle(
